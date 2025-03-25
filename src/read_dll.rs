@@ -9,7 +9,7 @@ type FnKbdLayerDescriptor = extern "system" fn() -> *const KBDTABLES;
 struct ZeroTerminatedTableIterator<V> {
     row: *const V,
     first: bool,
-    until: fn(V) -> bool,
+    predicate: fn(V) -> bool,
 }
 
 impl<V> Iterator for ZeroTerminatedTableIterator<V> {
@@ -21,7 +21,7 @@ impl<V> Iterator for ZeroTerminatedTableIterator<V> {
                 return None;
             }
 
-            if (self.until)(self.row.read()) {
+            if !(self.predicate)(self.row.read()) {
                 return None;
             }
 
@@ -31,7 +31,7 @@ impl<V> Iterator for ZeroTerminatedTableIterator<V> {
             }
 
             self.row = self.row.add(1);
-            if (self.until)(self.row.read()) {
+            if !(self.predicate)(self.row.read()) {
                 return None;
             }
 
@@ -40,8 +40,8 @@ impl<V> Iterator for ZeroTerminatedTableIterator<V> {
     }
 }
 
-fn table<V>(start: *const V, until: fn(V) -> bool) -> ZeroTerminatedTableIterator<V> {
-    ZeroTerminatedTableIterator { row: start, first: true, until }
+fn table<V>(start: *const V, predicate: fn(V) -> bool) -> ZeroTerminatedTableIterator<V> {
+    ZeroTerminatedTableIterator { row: start, first: true, predicate }
 }
 
 unsafe fn pwsz_to_string(ptr: *const u16) -> String {
@@ -65,12 +65,43 @@ pub fn read_keyboard(path: String) -> KeyboardDescriptor {
         let descriptor_ptr = proc();
 
         let mut descriptor = KeyboardDescriptor::new();
-        for entry in table((*descriptor_ptr).pKeyNames, |entry| entry.vsc == 0) {
-            descriptor.key_names.insert(ScanCode::Unescaped(entry.vsc), pwsz_to_string(entry.pwsz));
+        for scan_code in 0..(*descriptor_ptr).bMaxVSCtoVK {
+            let virtual_key_code = (*descriptor_ptr).pusVSCtoVK.offset(scan_code as isize).read();
+            if virtual_key_code == 0xFF { continue }
+            descriptor.scan_codes.insert(ScanCode::Unescaped(scan_code as u8), ScanCodeEntry {
+                virtual_key: VirtualKey { code: virtual_key_code as u8 },
+                name: None
+            });
         }
 
-        for entry in table((*descriptor_ptr).pKeyNamesExt, |entry| entry.vsc == 0) {
-            descriptor.key_names.insert(ScanCode::Extended(entry.vsc), pwsz_to_string(entry.pwsz));
+        for entry in table((*descriptor_ptr).pVSCtoVK_E0, |entry| entry.Vsc != 0) {
+            descriptor.scan_codes.insert(ScanCode::Extended0(entry.Vsc), ScanCodeEntry {
+                // TODO: Consume virtual code flags
+                virtual_key: VirtualKey { code: (entry.Vk & 0xFF) as u8 },
+                name: None
+            });
+        }
+
+        for entry in table((*descriptor_ptr).pVSCtoVK_E1, |entry| entry.Vsc != 0) {
+            descriptor.scan_codes.insert(ScanCode::Extended1(entry.Vsc), ScanCodeEntry {
+                // TODO: Consume virtual code flags
+                virtual_key: VirtualKey { code: (entry.Vk & 0xFF) as u8 },
+                name: None
+            });
+        }
+
+        for entry in table((*descriptor_ptr).pKeyNames, |entry| entry.vsc != 0) {
+            let Some(entry_ref) = descriptor.scan_codes.get_mut(&ScanCode::Unescaped(entry.vsc)) else {
+                continue
+            };
+            entry_ref.name = Some(pwsz_to_string(entry.pwsz));
+        }
+
+        for entry in table((*descriptor_ptr).pKeyNamesExt, |entry| entry.vsc != 0) {
+            let Some(entry_ref) = descriptor.scan_codes.get_mut(&ScanCode::Extended0(entry.vsc)) else {
+                continue
+            };
+            entry_ref.name = Some(pwsz_to_string(entry.pwsz));
         }
 
         descriptor

@@ -1,8 +1,18 @@
 use std::collections::HashMap;
 
+mod scan_codes;
+mod virtual_keys;
+pub use scan_codes::*;
+pub use virtual_keys::*;
+
 pub struct KeyboardDescriptor {
-    pub key_names: HashMap<ScanCode, String>,
+    pub scan_codes: HashMap<ScanCode, ScanCodeEntry>,
     pub dead_keys: Vec<DeadKey>,
+}
+
+pub struct ScanCodeEntry {
+    pub virtual_key: VirtualKey,
+    pub name: Option<String>,
 }
 
 pub struct KeyModifiers {
@@ -21,17 +31,10 @@ pub enum VirtualKeyEffect {
 impl KeyboardDescriptor {
     pub fn new() -> Self {
         Self {
-            key_names: HashMap::new(),
+            scan_codes: HashMap::new(),
             dead_keys: Vec::new(),
         }
     }
-}
-
-#[derive(PartialEq, Eq, Hash)]
-pub enum ScanCode {
-    Unescaped(u8), // Most significant bit unused
-    Extended(u8), // E0-escaped, most significant bit unused
-    Pause, // E1-escaped
 }
 
 pub struct DeadKey {
