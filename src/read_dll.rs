@@ -52,7 +52,7 @@ unsafe fn pwsz_to_string(ptr: *const u16) -> String {
     }
 }
 
-pub fn read_keyboard(path: String) -> KeyboardDescriptor {
+pub fn read_keyboard(path: String) -> KeyboardDesc {
     unsafe {
         let mut path_utf16: Vec<u16> = path.encode_utf16().collect();
         path_utf16.push(0);
@@ -64,18 +64,19 @@ pub fn read_keyboard(path: String) -> KeyboardDescriptor {
         let proc: FnKbdLayerDescriptor = transmute(GetProcAddress(module, b"KbdLayerDescriptor\0".as_ptr()).unwrap());
         let descriptor_ptr = proc();
 
-        let mut descriptor = KeyboardDescriptor::new();
+        let mut descriptor = KeyboardDesc::new();
+        // Read physical keys.
         for scan_code in 0..(*descriptor_ptr).bMaxVSCtoVK {
             let virtual_key_code = (*descriptor_ptr).pusVSCtoVK.offset(scan_code as isize).read();
             if virtual_key_code == 0xFF { continue }
-            descriptor.scan_codes.insert(ScanCode::Unescaped(scan_code as u8), ScanCodeEntry {
+            descriptor.physical_keys.insert(ScanCode::Unescaped(scan_code as u8), PhysicalKeyDesc {
                 virtual_key: VirtualKey { code: virtual_key_code as u8 },
                 name: None
             });
         }
 
         for entry in table((*descriptor_ptr).pVSCtoVK_E0, |entry| entry.Vsc != 0) {
-            descriptor.scan_codes.insert(ScanCode::Extended0(entry.Vsc), ScanCodeEntry {
+            descriptor.physical_keys.insert(ScanCode::Extended0(entry.Vsc), PhysicalKeyDesc {
                 // TODO: Consume virtual code flags
                 virtual_key: VirtualKey { code: (entry.Vk & 0xFF) as u8 },
                 name: None
@@ -83,22 +84,23 @@ pub fn read_keyboard(path: String) -> KeyboardDescriptor {
         }
 
         for entry in table((*descriptor_ptr).pVSCtoVK_E1, |entry| entry.Vsc != 0) {
-            descriptor.scan_codes.insert(ScanCode::Extended1(entry.Vsc), ScanCodeEntry {
+            descriptor.physical_keys.insert(ScanCode::Extended1(entry.Vsc), PhysicalKeyDesc {
                 // TODO: Consume virtual code flags
                 virtual_key: VirtualKey { code: (entry.Vk & 0xFF) as u8 },
                 name: None
             });
         }
 
+        // Populate physical key names
         for entry in table((*descriptor_ptr).pKeyNames, |entry| entry.vsc != 0) {
-            let Some(entry_ref) = descriptor.scan_codes.get_mut(&ScanCode::Unescaped(entry.vsc)) else {
+            let Some(entry_ref) = descriptor.physical_keys.get_mut(&ScanCode::Unescaped(entry.vsc)) else {
                 continue
             };
             entry_ref.name = Some(pwsz_to_string(entry.pwsz));
         }
 
         for entry in table((*descriptor_ptr).pKeyNamesExt, |entry| entry.vsc != 0) {
-            let Some(entry_ref) = descriptor.scan_codes.get_mut(&ScanCode::Extended0(entry.vsc)) else {
+            let Some(entry_ref) = descriptor.physical_keys.get_mut(&ScanCode::Extended0(entry.vsc)) else {
                 continue
             };
             entry_ref.name = Some(pwsz_to_string(entry.pwsz));
