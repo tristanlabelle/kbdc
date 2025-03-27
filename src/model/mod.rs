@@ -4,6 +4,7 @@ mod scan_codes;
 mod virtual_keys;
 pub use scan_codes::*;
 pub use virtual_keys::*;
+use windows_sys::Win32::UI::Input::KeyboardAndMouse::*;
 
 pub struct KeyboardDesc {
     pub physical_keys: HashMap<ScanCode, PhysicalKeyDesc>,
@@ -29,6 +30,7 @@ pub struct PhysicalKeyDesc {
     pub name: Option<String>,
 }
 
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
 pub struct KeyModifiers {
     /// The shift modifier.
     pub shift: bool, // KBDSHIFT
@@ -42,6 +44,22 @@ pub struct KeyModifiers {
     pub loya: bool, // KBDLOYA
     pub unknown0x40: bool,
     pub grpseltap: bool, // KBDGRPSELTAP
+}
+
+impl KeyModifiers {
+    pub fn from_bits(flags: u8) -> Self {
+        let flags = flags as u32;
+        return Self {
+            shift: (flags & KBDSHIFT) != 0,
+            control: (flags & KBDCTRL) != 0,
+            alt: (flags & KBDALT) != 0,
+            kana: (flags & KBDKANA) != 0,
+            roya: (flags & KBDROYA) != 0,
+            loya: (flags & KBDLOYA) != 0,
+            unknown0x40: (flags & 0x40) != 0,
+            grpseltap: (flags & KBDGRPSELTAP) != 0,
+        }
+    }
 }
 
 pub enum KeyEffect {

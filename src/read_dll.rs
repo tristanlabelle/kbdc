@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::mem::transmute;
+use std::ptr::null;
 use windows_sys::Win32::System::LibraryLoader::{LoadLibraryW, GetProcAddress};
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::*;
 
@@ -20,6 +21,7 @@ pub fn read_keyboard(path: String) -> KeyboardDesc {
 
         let mut descriptor = KeyboardDesc::new();
         descriptor.physical_keys = read_physical_keys(descriptor_ptr);
+        descriptor.virtual_keys = read_virtual_keys(descriptor_ptr);
 
         descriptor
     }
@@ -29,8 +31,8 @@ unsafe fn read_physical_keys(descriptor_ptr: *const KBDTABLES) -> HashMap<ScanCo
     let mut result: HashMap<ScanCode, PhysicalKeyDesc> = HashMap::new();
 
     unsafe {
-        for scan_code in 0..(*descriptor_ptr).bMaxVSCtoVK {
-            let virtual_key_code = (*descriptor_ptr).pusVSCtoVK.offset(scan_code as isize).read();
+        for scan_code in 0..descriptor_ptr.deref().bMaxVSCtoVK {
+            let virtual_key_code = descriptor_ptr.deref().pusVSCtoVK.offset(scan_code as isize).read();
             if virtual_key_code == 0xFF { continue }
             result.insert(ScanCode::Unescaped(scan_code as u8), PhysicalKeyDesc {
                 virtual_key: VirtualKey { code: virtual_key_code as u8 },
@@ -38,50 +40,140 @@ unsafe fn read_physical_keys(descriptor_ptr: *const KBDTABLES) -> HashMap<ScanCo
             });
         }
 
-        for entry in table((*descriptor_ptr).pVSCtoVK_E0, |entry| entry.Vsc != 0) {
-            result.insert(ScanCode::Extended0(entry.Vsc), PhysicalKeyDesc {
+        for row_ptr in table(descriptor_ptr.deref().pVSCtoVK_E0, |row_ptr| row_ptr.deref().Vsc != 0) {
+            result.insert(ScanCode::Extended0(row_ptr.deref().Vsc), PhysicalKeyDesc {
                 // TODO: Consume virtual code flags
-                virtual_key: VirtualKey { code: (entry.Vk & 0xFF) as u8 },
+                virtual_key: VirtualKey { code: (row_ptr.deref().Vk & 0xFF) as u8 },
                 name: None
             });
         }
 
-        for entry in table((*descriptor_ptr).pVSCtoVK_E1, |entry| entry.Vsc != 0) {
-            result.insert(ScanCode::Extended1(entry.Vsc), PhysicalKeyDesc {
+        for row_ptr in table(descriptor_ptr.deref().pVSCtoVK_E1, |row_ptr| row_ptr.deref().Vsc != 0) {
+            result.insert(ScanCode::Extended1(row_ptr.deref().Vsc), PhysicalKeyDesc {
                 // TODO: Consume virtual code flags
-                virtual_key: VirtualKey { code: (entry.Vk & 0xFF) as u8 },
+                virtual_key: VirtualKey { code: (row_ptr.deref().Vk & 0xFF) as u8 },
                 name: None
             });
         }
 
         // Populate physical key names
-        for entry in table((*descriptor_ptr).pKeyNames, |entry| entry.vsc != 0) {
-            let Some(entry_ref) = result.get_mut(&ScanCode::Unescaped(entry.vsc)) else {
+        for row_ptr in table(descriptor_ptr.deref().pKeyNames, |row_ptr| row_ptr.deref().vsc != 0) {
+            let Some(entry_ref) = result.get_mut(&ScanCode::Unescaped(row_ptr.deref().vsc)) else {
                 continue
             };
-            entry_ref.name = Some(pwsz_to_string(entry.pwsz));
+            entry_ref.name = Some(pwsz_to_string(row_ptr.deref().pwsz));
         }
 
-        for entry in table((*descriptor_ptr).pKeyNamesExt, |entry| entry.vsc != 0) {
-            let Some(entry_ref) = result.get_mut(&ScanCode::Extended0(entry.vsc)) else {
+        for row_ptr in table(descriptor_ptr.deref().pKeyNamesExt, |row_ptr| row_ptr.deref().vsc != 0) {
+            let Some(entry_ref) = result.get_mut(&ScanCode::Extended0(row_ptr.deref().vsc)) else {
                 continue
             };
-            entry_ref.name = Some(pwsz_to_string(entry.pwsz));
+            entry_ref.name = Some(pwsz_to_string(row_ptr.deref().pwsz));
         }
     }
 
     result
 }
 
+unsafe fn read_virtual_keys(descriptor_ptr: *const KBDTABLES) -> HashMap<VirtualKey, KeyEffect> {
+    let mut result: HashMap<VirtualKey, KeyEffect> = HashMap::new();
 
-struct ZeroTerminatedTableIterator<V> {
-    row: *const V,
-    first: bool,
-    predicate: fn(V) -> bool,
+    unsafe {
+        // Populate modifier virtual keys
+        let modifiers_ptr = descriptor_ptr.deref().pCharModifiers;
+        for row_ptr in table(modifiers_ptr.deref().pVkToBit, |row_ptr| row_ptr.deref().Vk != 0) {
+            result.insert(VirtualKey { code: row_ptr.deref().Vk }, KeyEffect::Modifier(KeyModifiers::from_bits(row_ptr.deref().ModBits)));
+        }
+
+        // Build modification number -> modifiers mapping
+        let mut mod_numbers_to_mods: HashMap<u8, KeyModifiers> = HashMap::new();
+        for modifier_bits in 0..(modifiers_ptr.deref().wMaxModBits + 1) {
+            let mod_number = modifiers_ptr.deref().ModNumber.as_ptr().add(modifier_bits as usize).read();
+            if mod_number as u32 == SHFT_INVALID { continue }
+            mod_numbers_to_mods.insert(mod_number, KeyModifiers::from_bits(modifier_bits as u8));
+        }
+
+        // Populate virtual keys which type stuff
+        for tables_row_ptr in table(descriptor_ptr.deref().pVkToWcharTable, |row_ptr| !row_ptr.deref().pVkToWchars.is_null()) {
+            let key_mod_count = tables_row_ptr.deref().nModifications;
+            let mut table_row_iterator = strided_table(
+                tables_row_ptr.deref().pVkToWchars,
+                tables_row_ptr.deref().cbSize as usize,
+                |row_ptr| row_ptr.deref().VirtualKey != 0);
+            loop {
+                let Some(table_row_ptr) = table_row_iterator.next() else { break };
+
+                // Read attributes
+                let attribute_bits = table_row_ptr.deref().Attributes as u32;
+                let mut key_typing = KeyTyping {
+                    by_modifiers: HashMap::new(),
+                    caps_lock_means_shift: (attribute_bits & CAPLOK) != 0,
+                    caps_lock_uppercases: (attribute_bits & SGCAPS) != 0,
+                    caps_lock_altgr_means_shift: (attribute_bits & CAPLOKALTGR) != 0,
+                    kana_support: (attribute_bits & KANALOK) != 0,
+                    grpseltap_support: (attribute_bits & GRPSELTAP) != 0,
+                };
+
+                let chars_ptr = table_row_ptr.deref().wch.as_ptr();
+
+                // Read chars for each modifier
+                let mut dead_row_chars_ptr: *const u16 = null();
+                for mod_number in 0..key_mod_count {
+                    let char = chars_ptr.add(mod_number as usize).read();
+                    if char as u32 == WCH_NONE { continue }
+
+                    let modifiers = mod_numbers_to_mods[&mod_number];
+
+                    if char as u32 == WCH_DEAD {
+                        // Read the dead row if we haven't already
+                        if dead_row_chars_ptr.is_null() {
+                            let dead_row_ptr = table_row_iterator.next();
+                            if dead_row_ptr.is_none() || dead_row_ptr.unwrap().deref().VirtualKey != 0xFF {
+                                panic!("Malformed virtual key to dead key mapping.")
+                            }
+
+                            dead_row_chars_ptr = dead_row_ptr.unwrap().deref().wch.as_ptr()
+                        }
+
+                        let dead_char = dead_row_chars_ptr.add(mod_number as usize).read();
+                        key_typing.by_modifiers.insert(modifiers, TypingEffect::DeadKey(dead_char));
+                        continue
+                    }
+
+                    if char as u32 == WCH_LGTR {
+                        panic!("Ligatures are not implemented.")
+                    }
+
+                    key_typing.by_modifiers.insert(modifiers, TypingEffect::Char(char));
+                }
+
+                result.insert(VirtualKey { code: table_row_ptr.deref().VirtualKey }, KeyEffect::Typing(key_typing));
+            }
+        }
+    }
+
+    result
 }
 
-impl<V> Iterator for ZeroTerminatedTableIterator<V> {
-    type Item = V;
+trait PtrDeref<T>{
+    unsafe fn deref<'x>(self) -> &'x T;
+}
+
+impl<T> PtrDeref<T> for *const T{
+    unsafe fn deref<'x>(self) -> &'x T{
+        unsafe { &*self }
+    }
+}
+
+struct TableIterator<V> {
+    row: *const V,
+    first: bool,
+    stride: usize,
+    predicate: fn(*const V) -> bool,
+}
+
+impl<V> Iterator for TableIterator<V> {
+    type Item = *const V;
 
     fn next(&mut self) -> Option<Self::Item> {
         unsafe {
@@ -89,27 +181,41 @@ impl<V> Iterator for ZeroTerminatedTableIterator<V> {
                 return None;
             }
 
-            if !(self.predicate)(self.row.read()) {
+            if !(self.predicate)(self.row) {
                 return None;
             }
 
             if self.first {
                 self.first = false;
-                return Some(self.row.read());
+                return Some(self.row)
             }
 
-            self.row = self.row.add(1);
-            if !(self.predicate)(self.row.read()) {
+            self.row = self.row.byte_add(self.stride);
+            if !(self.predicate)(self.row) {
                 return None;
             }
 
-            Some(self.row.read())
+            Some(self.row)
         }
     }
 }
 
-fn table<V>(start: *const V, predicate: fn(V) -> bool) -> ZeroTerminatedTableIterator<V> {
-    ZeroTerminatedTableIterator { row: start, first: true, predicate }
+fn table<V>(start: *const V, predicate: fn(*const V) -> bool) -> TableIterator<V> {
+    TableIterator {
+        row: start,
+        first: true,
+        stride: size_of::<V>(),
+        predicate
+    }
+}
+
+fn strided_table<V>(start: *const V, stride: usize, predicate: fn(*const V) -> bool) -> TableIterator<V> {
+    TableIterator {
+        row: start,
+        first: true,
+        stride: stride,
+        predicate
+    }
 }
 
 fn string_to_rgwsz(str: String) -> Vec<u16> {
