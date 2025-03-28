@@ -119,8 +119,8 @@ pub enum TypingEffect {
     Char(u16),
     /// A dead key gets triggered.
     DeadKey(u16),
-    /// A ligature gets entered (not implemented yet).
-    Ligature
+    /// A ligature gets entered.
+    Ligature(Box<[u16]>)
 }
 
 pub struct DeadKeyDesc {
