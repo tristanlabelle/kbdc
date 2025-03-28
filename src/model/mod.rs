@@ -24,6 +24,9 @@ pub struct KeyboardDesc {
 
     // TODO: nLgMax, cbLgEntry, pLigature
     // TODO: dwType, dwSubType
+
+    pub type_value: u32,
+    pub subtype_value: u32,
 }
 
 impl KeyboardDesc {
@@ -35,9 +38,16 @@ impl KeyboardDesc {
             version: 0,
             altgr_flag: false,
             shift_lock_flag: false,
-            lrm_rlm_flag: false
+            lrm_rlm_flag: false,
+            type_value: 0,
+            subtype_value: 0,
         }
     }
+
+    pub const TYPE_GENERIC101: u32 = 4;
+    pub const TYPE_JAPAN: u32 = 7;
+    pub const TYPE_KOREA: u32 = 8;
+    pub const TYPE_UNKNOWN: u32 = 0x51;
 }
 
 pub struct PhysicalKeyDesc {

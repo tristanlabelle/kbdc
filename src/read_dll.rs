@@ -34,6 +34,9 @@ pub fn read_keyboard(path: String) -> KeyboardDesc {
             panic!("Ligatures are not implemented.")
         }
 
+        descriptor.type_value = descriptor_ptr.deref().dwType;
+        descriptor.subtype_value = descriptor_ptr.deref().dwSubType;
+
         descriptor
     }
 }
