@@ -22,6 +22,17 @@ pub fn read_keyboard(path: String) -> KeyboardDesc {
         let mut descriptor = KeyboardDesc::new();
         descriptor.physical_keys = read_physical_keys(descriptor_ptr);
         descriptor.virtual_keys = read_virtual_keys(descriptor_ptr);
+        descriptor.dead_keys = read_dead_keys(descriptor_ptr);
+
+        let locale_flags = descriptor_ptr.deref().fLocaleFlags;
+        descriptor.version = (locale_flags >> 16) as u16;
+        descriptor.altgr_flag = (locale_flags & KLLF_ALTGR) != 0;
+        descriptor.shift_lock_flag = (locale_flags & KLLF_SHIFTLOCK) != 0;
+        descriptor.lrm_rlm_flag = (locale_flags & KLLF_LRM_RLM) != 0;
+
+        if descriptor_ptr.deref().nLgMax > 0 {
+            panic!("Ligatures are not implemented.")
+        }
 
         descriptor
     }
@@ -153,6 +164,40 @@ unsafe fn read_virtual_keys(descriptor_ptr: *const KBDTABLES) -> HashMap<Virtual
 
                 result.insert(VirtualKey { code: table_row_ptr.deref().VirtualKey }, KeyEffect::Typing(key_typing));
             }
+        }
+    }
+
+    result
+}
+
+pub fn read_dead_keys(descriptor_ptr: *const KBDTABLES) -> HashMap<u16, DeadKeyDesc> {
+    let mut result: HashMap<u16, DeadKeyDesc> = HashMap::new();
+
+    unsafe {
+        // Populate dead key combos
+        for row_ptr in table(descriptor_ptr.deref().pDeadKey, |row_ptr| row_ptr.deref().wchComposed != 0) {
+            let accent_and_base_char = row_ptr.deref().dwBoth;
+            let base_char = (accent_and_base_char & 0xFFFF) as u16;
+            let accent_char = (accent_and_base_char >> 16) as u16;
+
+            let dead_key = result.entry(accent_char)
+                .or_insert(DeadKeyDesc { name: None, combos: HashMap::new() });
+
+            dead_key.combos.insert(base_char, DeadKeyCombo {
+                composed_char: row_ptr.deref().wchComposed,
+                flags: row_ptr.deref().uFlags,
+            });
+        }
+
+        // Populate dead key names
+        for row_ptr in table(descriptor_ptr.deref().pKeyNamesDead, |row_ptr| !row_ptr.deref().is_null()) {
+            let pwsz = row_ptr.deref();
+            let accent_char = pwsz.read();
+            let name = pwsz_to_string(pwsz.add(1));
+
+            let dead_key = result.entry(accent_char)
+                .or_insert(DeadKeyDesc { name: None, combos: HashMap::new() });
+            dead_key.name = Some(name);
         }
     }
 

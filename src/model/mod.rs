@@ -7,9 +7,23 @@ pub use virtual_keys::*;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::*;
 
 pub struct KeyboardDesc {
+    // pusVSCtoVK, bMaxVSCtoVK, pVSCtoVK_E0, pVSCtoVK_E1
     pub physical_keys: HashMap<ScanCode, PhysicalKeyDesc>,
+
+    // pCharModifiers, pVkToWcharTable, pKeyNames, pKeyNamesExt
     pub virtual_keys: HashMap<VirtualKey, KeyEffect>,
+
+    // pDeadKey, pKeyNamesDead
     pub dead_keys: HashMap<u16, DeadKeyDesc>,
+
+    // fLocaleFlags
+    pub version: u16,
+    pub altgr_flag: bool, // KLLF_ALTGR
+    pub shift_lock_flag: bool, // KLLF_SHIFTLOCK
+    pub lrm_rlm_flag: bool, // KLLF_LRM_RLM
+
+    // TODO: nLgMax, cbLgEntry, pLigature
+    // TODO: dwType, dwSubType
 }
 
 impl KeyboardDesc {
@@ -18,6 +32,10 @@ impl KeyboardDesc {
             physical_keys: HashMap::new(),
             virtual_keys: HashMap::new(),
             dead_keys: HashMap::new(),
+            version: 0,
+            altgr_flag: false,
+            shift_lock_flag: false,
+            lrm_rlm_flag: false
         }
     }
 }
@@ -91,7 +109,7 @@ pub enum TypingEffect {
     Char(u16),
     /// A dead key gets triggered.
     DeadKey(u16),
-    /// A ligature gets entered.
+    /// A ligature gets entered (not implemented yet).
     Ligature
 }
 
