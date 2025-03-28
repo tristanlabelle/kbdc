@@ -32,26 +32,30 @@ unsafe fn read_physical_keys(descriptor_ptr: *const KBDTABLES) -> HashMap<ScanCo
 
     unsafe {
         for scan_code in 0..descriptor_ptr.deref().bMaxVSCtoVK {
-            let virtual_key_code = descriptor_ptr.deref().pusVSCtoVK.offset(scan_code as isize).read();
-            if virtual_key_code == 0xFF { continue }
+            let virtual_key_bits = descriptor_ptr.deref().pusVSCtoVK.offset(scan_code as isize).read();
+            let (virtual_key, virtual_key_flags) = VirtualKey::from_extended_bits(virtual_key_bits);
+            if virtual_key.code == 0xFF { continue }
             result.insert(ScanCode::Unescaped(scan_code as u8), PhysicalKeyDesc {
-                virtual_key: VirtualKey { code: virtual_key_code as u8 },
+                virtual_key: virtual_key,
+                virtual_key_flags: virtual_key_flags,
                 name: None
             });
         }
 
         for row_ptr in table(descriptor_ptr.deref().pVSCtoVK_E0, |row_ptr| row_ptr.deref().Vsc != 0) {
+            let (virtual_key, virtual_key_flags) = VirtualKey::from_extended_bits(row_ptr.deref().Vk);
             result.insert(ScanCode::Extended0(row_ptr.deref().Vsc), PhysicalKeyDesc {
-                // TODO: Consume virtual code flags
-                virtual_key: VirtualKey { code: (row_ptr.deref().Vk & 0xFF) as u8 },
+                virtual_key: virtual_key,
+                virtual_key_flags: virtual_key_flags,
                 name: None
             });
         }
 
         for row_ptr in table(descriptor_ptr.deref().pVSCtoVK_E1, |row_ptr| row_ptr.deref().Vsc != 0) {
+            let (virtual_key, virtual_key_flags) = VirtualKey::from_extended_bits(row_ptr.deref().Vk);
             result.insert(ScanCode::Extended1(row_ptr.deref().Vsc), PhysicalKeyDesc {
-                // TODO: Consume virtual code flags
-                virtual_key: VirtualKey { code: (row_ptr.deref().Vk & 0xFF) as u8 },
+                virtual_key: virtual_key,
+                virtual_key_flags: virtual_key_flags,
                 name: None
             });
         }

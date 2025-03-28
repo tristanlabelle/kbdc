@@ -25,7 +25,8 @@ impl KeyboardDesc {
 pub struct PhysicalKeyDesc {
     /// The virtual key to which the scan code maps.
     pub virtual_key: VirtualKey,
-    // TODO: Virtual key flags
+    /// Flags applying to that virtual key.
+    pub virtual_key_flags: VirtualKeyFlags,
     /// The name of the physical key.
     pub name: Option<String>,
 }

@@ -1,6 +1,43 @@
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
 pub struct VirtualKey {
     pub code: u8
+}
+
+impl VirtualKey {
+    pub fn from_extended_bits(value: u16) -> (VirtualKey, VirtualKeyFlags) {
+        (
+            VirtualKey { code: (value & 0xFF) as u8 },
+            VirtualKeyFlags::from_bits((value >> 8) as u8)
+        )
+    }
+}
+
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+pub struct VirtualKeyFlags {
+    pub extended: bool, // KBDEXT
+    pub multi_vk: bool, // KBDMULTIVK
+    pub special: bool, // KBDSPECIAL
+    pub numpad: bool, // KBDNUMPAD
+    pub unicode: bool, // KBDUNICODE
+    pub injected_vk: bool, // KBDINJECTEDVK
+    pub mapped_vk: bool, // KBDMAPPEDVK
+    pub r#break: bool, // KBDBREAK
+}
+
+impl VirtualKeyFlags {
+    pub fn from_bits(flags: u8) -> Self {
+        let flags = flags as u32;
+        Self {
+            extended: (flags & 0x01) != 0,
+            multi_vk: (flags & 0x02) != 0,
+            special: (flags & 0x04) != 0,
+            numpad: (flags & 0x08) != 0,
+            unicode: (flags & 0x10) != 0,
+            injected_vk: (flags & 0x20) != 0,
+            mapped_vk: (flags & 0x40) != 0,
+            r#break: (flags & 0x80) != 0,
+        }
+    }
 }
 
 #[allow(dead_code)]
