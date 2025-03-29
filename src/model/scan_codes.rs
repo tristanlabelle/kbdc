@@ -1,4 +1,4 @@
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Ord, PartialOrd, Clone, Copy)]
 pub enum ScanCode {
     Unescaped(u8), // Most significant bit unused
     Extended0(u8), // E0-escaped, most significant bit unused

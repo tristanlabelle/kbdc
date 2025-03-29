@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::mem::transmute;
 use std::ptr::null;
 use windows_sys::Win32::System::LibraryLoader::{LoadLibraryW, GetProcAddress};
@@ -41,8 +41,8 @@ pub fn read_keyboard(path: String) -> KeyboardDesc {
     }
 }
 
-unsafe fn read_physical_keys(descriptor_ptr: *const KBDTABLES) -> HashMap<ScanCode, PhysicalKeyDesc> {
-    let mut result: HashMap<ScanCode, PhysicalKeyDesc> = HashMap::new();
+unsafe fn read_physical_keys(descriptor_ptr: *const KBDTABLES) -> BTreeMap<ScanCode, PhysicalKeyDesc> {
+    let mut result: BTreeMap<ScanCode, PhysicalKeyDesc> = BTreeMap::new();
 
     unsafe {
         for scan_code in 0..descriptor_ptr.deref().bMaxVSCtoVK {

@@ -1,14 +1,14 @@
 // Represents the data returned by the KbdLayerDescriptor
 // entry point of a keyboard layout DLL.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::*;
 use crate::model::scan_codes::*;
 use crate::model::virtual_keys::*;
 
 pub struct KeyboardDesc {
     // pusVSCtoVK, bMaxVSCtoVK, pVSCtoVK_E0, pVSCtoVK_E1
-    pub physical_keys: HashMap<ScanCode, PhysicalKeyDesc>,
+    pub physical_keys: BTreeMap<ScanCode, PhysicalKeyDesc>,
 
     // pCharModifiers, pVkToWcharTable, pKeyNames, pKeyNamesExt
     pub virtual_keys: HashMap<VirtualKey, KeyEffect>,
@@ -32,7 +32,7 @@ pub struct KeyboardDesc {
 impl KeyboardDesc {
     pub fn new() -> Self {
         Self {
-            physical_keys: HashMap::new(),
+            physical_keys: BTreeMap::new(),
             virtual_keys: HashMap::new(),
             dead_keys: HashMap::new(),
             version: 0,
