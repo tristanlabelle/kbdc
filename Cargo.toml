@@ -4,7 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+bimap = "0.6.3"
 saphyr = "0.0.3"
+lazy_static = "1.4.0"
 
 [dependencies.windows-sys]
 version = "0.59"

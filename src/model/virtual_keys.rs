@@ -71,3 +71,173 @@ impl VirtualKey {
     pub const LEFT_ALT: Self = Self { code: 0xA4 };
     pub const RIGHT_ALT: Self = Self { code: 0xA5 };
 }
+
+use bimap::BiHashMap;
+use lazy_static::lazy_static;
+
+lazy_static! {
+    static ref code_to_vk_name: BiHashMap<u8, &'static str> = {
+        let mut map = BiHashMap::new();
+        map.insert(0x01, "VK_LBUTTON");
+        map.insert(0x02, "VK_RBUTTON");
+        map.insert(0x03, "VK_CANCEL");
+        map.insert(0x04, "VK_MBUTTON");
+        map.insert(0x05, "VK_XBUTTON1");
+        map.insert(0x06, "VK_XBUTTON2");
+        map.insert(0x08, "VK_BACK");
+        map.insert(0x09, "VK_TAB");
+        map.insert(0x0C, "VK_CLEAR");
+        map.insert(0x0D, "VK_RETURN");
+        map.insert(0x10, "VK_SHIFT");
+        map.insert(0x11, "VK_CONTROL");
+        map.insert(0x12, "VK_MENU");
+        map.insert(0x13, "VK_PAUSE");
+        map.insert(0x14, "VK_CAPITAL");
+        map.insert(0x15, "VK_KANA");
+        map.insert(0x15, "VK_HANGUL");
+        map.insert(0x16, "VK_IME_ON");
+        map.insert(0x17, "VK_JUNJA");
+        map.insert(0x18, "VK_FINAL");
+        map.insert(0x19, "VK_HANJA");
+        map.insert(0x19, "VK_KANJI");
+        map.insert(0x1A, "VK_IME_OFF");
+        map.insert(0x1B, "VK_ESCAPE");
+        map.insert(0x1C, "VK_CONVERT");
+        map.insert(0x1D, "VK_NONCONVERT");
+        map.insert(0x1E, "VK_ACCEPT");
+        map.insert(0x1F, "VK_MODECHANGE");
+        map.insert(0x20, "VK_SPACE");
+        map.insert(0x21, "VK_PRIOR");
+        map.insert(0x22, "VK_NEXT");
+        map.insert(0x23, "VK_END");
+        map.insert(0x24, "VK_HOME");
+        map.insert(0x25, "VK_LEFT");
+        map.insert(0x26, "VK_UP");
+        map.insert(0x27, "VK_RIGHT");
+        map.insert(0x28, "VK_DOWN");
+        map.insert(0x29, "VK_SELECT");
+        map.insert(0x2A, "VK_PRINT");
+        map.insert(0x2B, "VK_EXECUTE");
+        map.insert(0x2C, "VK_SNAPSHOT");
+        map.insert(0x2D, "VK_INSERT");
+        map.insert(0x2E, "VK_DELETE");
+        map.insert(0x2F, "VK_HELP");
+        map.insert(0x5B, "VK_LWIN");
+        map.insert(0x5C, "VK_RWIN");
+        map.insert(0x5D, "VK_APPS");
+        map.insert(0x5F, "VK_SLEEP");
+        map.insert(0x60, "VK_NUMPAD0");
+        map.insert(0x61, "VK_NUMPAD1");
+        map.insert(0x62, "VK_NUMPAD2");
+        map.insert(0x63, "VK_NUMPAD3");
+        map.insert(0x64, "VK_NUMPAD4");
+        map.insert(0x65, "VK_NUMPAD5");
+        map.insert(0x66, "VK_NUMPAD6");
+        map.insert(0x67, "VK_NUMPAD7");
+        map.insert(0x68, "VK_NUMPAD8");
+        map.insert(0x69, "VK_NUMPAD9");
+        map.insert(0x6A, "VK_MULTIPLY");
+        map.insert(0x6B, "VK_ADD");
+        map.insert(0x6C, "VK_SEPARATOR");
+        map.insert(0x6D, "VK_SUBTRACT");
+        map.insert(0x6E, "VK_DECIMAL");
+        map.insert(0x6F, "VK_DIVIDE");
+        map.insert(0x70, "VK_F1");
+        map.insert(0x71, "VK_F2");
+        map.insert(0x72, "VK_F3");
+        map.insert(0x73, "VK_F4");
+        map.insert(0x74, "VK_F5");
+        map.insert(0x75, "VK_F6");
+        map.insert(0x76, "VK_F7");
+        map.insert(0x77, "VK_F8");
+        map.insert(0x78, "VK_F9");
+        map.insert(0x79, "VK_F10");
+        map.insert(0x7A, "VK_F11");
+        map.insert(0x7B, "VK_F12");
+        map.insert(0x7C, "VK_F13");
+        map.insert(0x7D, "VK_F14");
+        map.insert(0x7E, "VK_F15");
+        map.insert(0x7F, "VK_F16");
+        map.insert(0x80, "VK_F17");
+        map.insert(0x81, "VK_F18");
+        map.insert(0x82, "VK_F19");
+        map.insert(0x83, "VK_F20");
+        map.insert(0x84, "VK_F21");
+        map.insert(0x85, "VK_F22");
+        map.insert(0x86, "VK_F23");
+        map.insert(0x87, "VK_F24");
+        map.insert(0x90, "VK_NUMLOCK");
+        map.insert(0x91, "VK_SCROLL");
+        map.insert(0xA0, "VK_LSHIFT");
+        map.insert(0xA1, "VK_RSHIFT");
+        map.insert(0xA2, "VK_LCONTROL");
+        map.insert(0xA3, "VK_RCONTROL");
+        map.insert(0xA4, "VK_LMENU");
+        map.insert(0xA5, "VK_RMENU");
+        map.insert(0xA6, "VK_BROWSER_BACK");
+        map.insert(0xA7, "VK_BROWSER_FORWARD");
+        map.insert(0xA8, "VK_BROWSER_REFRESH");
+        map.insert(0xA9, "VK_BROWSER_STOP");
+        map.insert(0xAA, "VK_BROWSER_SEARCH");
+        map.insert(0xAB, "VK_BROWSER_FAVORITES");
+        map.insert(0xAC, "VK_BROWSER_HOME");
+        map.insert(0xAD, "VK_VOLUME_MUTE");
+        map.insert(0xAE, "VK_VOLUME_DOWN");
+        map.insert(0xAF, "VK_VOLUME_UP");
+        map.insert(0xB0, "VK_MEDIA_NEXT_TRACK");
+        map.insert(0xB1, "VK_MEDIA_PREV_TRACK");
+        map.insert(0xB2, "VK_MEDIA_STOP");
+        map.insert(0xB3, "VK_MEDIA_PLAY_PAUSE");
+        map.insert(0xB4, "VK_LAUNCH_MAIL");
+        map.insert(0xB5, "VK_LAUNCH_MEDIA_SELECT");
+        map.insert(0xB6, "VK_LAUNCH_APP1");
+        map.insert(0xB7, "VK_LAUNCH_APP2");
+        map.insert(0xBA, "VK_OEM_1");
+        map.insert(0xBB, "VK_OEM_PLUS");
+        map.insert(0xBC, "VK_OEM_COMMA");
+        map.insert(0xBD, "VK_OEM_MINUS");
+        map.insert(0xBE, "VK_OEM_PERIOD");
+        map.insert(0xBF, "VK_OEM_2");
+        map.insert(0xC0, "VK_OEM_3");
+        map.insert(0xDB, "VK_OEM_4");
+        map.insert(0xDC, "VK_OEM_5");
+        map.insert(0xDD, "VK_OEM_6");
+        map.insert(0xDE, "VK_OEM_7");
+        map.insert(0xDF, "VK_OEM_8");
+        map.insert(0xE2, "VK_OEM_102");
+        map.insert(0xE5, "VK_PROCESSKEY");
+        map.insert(0xE7, "VK_PACKET");
+        map.insert(0xF6, "VK_ATTN");
+        map.insert(0xF7, "VK_CRSEL");
+        map.insert(0xF8, "VK_EXSEL");
+        map.insert(0xF9, "VK_EREOF");
+        map.insert(0xFA, "VK_PLAY");
+        map.insert(0xFB, "VK_ZOOM");
+        map.insert(0xFC, "VK_NONAME");
+        map.insert(0xFD, "VK_PA1");
+        map.insert(0xFE, "VK_OEM_CLEAR");
+        map
+    };
+}
+
+impl VirtualKey {
+    pub fn to_vk_enum(&self) -> Option<&str> {
+        code_to_vk_name.get_by_left(&self.code).copied()
+    }
+
+    pub fn from_vk_enum(name: &str) -> Option<Self> {
+        code_to_vk_name.get_by_right(&name).copied().map(|code| VirtualKey { code })
+    }
+
+    pub fn is_code_ascii(&self) -> bool {
+        if self.code >= 0x30 && self.code <= 0x39 {
+            true // Numeric keys (0-9)
+        }
+        else if self.code >= 0x41 && self.code <= 0x5A {
+            true // Alphabetic keys (A-Z)
+        }
+        else {
+            false // Other keys
+        }
+    }
+}

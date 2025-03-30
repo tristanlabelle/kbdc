@@ -43,6 +43,7 @@ impl ScanCode {
 
 impl VirtualKey {
     fn to_yaml(&self) -> Yaml {
+        // TODO: Leverage VirtualKey.to_vk_name() to get the name.
         Yaml::String(format!("0x{:02X}", self.code))
     }
 }
