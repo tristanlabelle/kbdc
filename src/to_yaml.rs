@@ -6,11 +6,19 @@ impl KeyboardDesc {
     pub fn to_yaml(&self) -> Yaml {
         let mut document = Hash::new();
         {
-            let mut physical_keys = Hash::new();
+            let mut physical_to_virtual = Hash::new();
             for (scan_code, physical_key) in &self.physical_keys {
-                physical_keys.insert(scan_code.to_yaml(), physical_key.to_yaml());
+                if physical_key.name.is_none() { continue; }
+                physical_to_virtual.insert(scan_code.to_yaml(), Yaml::String(physical_key.name.clone().unwrap()));
             }
-            document.insert(Yaml::String("physicalKeys".into()), Yaml::Hash(physical_keys));
+            document.insert(Yaml::String("physicalKeyNames".into()), Yaml::Hash(physical_to_virtual));
+        }
+        {
+            let mut physical_to_virtual = Hash::new();
+            for (scan_code, physical_key) in &self.physical_keys {
+                physical_to_virtual.insert(scan_code.to_yaml(), physical_key.virtual_key.to_yaml());
+            }
+            document.insert(Yaml::String("physicalToVirtualKeys".into()), Yaml::Hash(physical_to_virtual));
         }
         // {
         //     let mut virtual_keys = Hash::new();
@@ -33,9 +41,9 @@ impl KeyboardDesc {
 impl ScanCode {
     fn to_yaml(&self) -> Yaml {
         let str: String = match self {
-            Self::Unescaped(code) => format!("0x{:02X}", code),
-            Self::Extended0(code) => format!("0xE0{:02X}", code),
-            Self::Extended1(code) => format!("0xE1{:02X}", code),
+            Self::Unescaped(code) => format!("{:02X}", code),
+            Self::Extended0(code) => format!("E0{:02X}", code),
+            Self::Extended1(code) => format!("E1{:02X}", code),
         };
         Yaml::String(str)
     }
@@ -43,8 +51,13 @@ impl ScanCode {
 
 impl VirtualKey {
     fn to_yaml(&self) -> Yaml {
-        // TODO: Leverage VirtualKey.to_vk_name() to get the name.
-        Yaml::String(format!("0x{:02X}", self.code))
+        if *self == VirtualKey::NONE {
+            return Yaml::Null;
+        }
+        if let Some(enum_name) = self.to_vk_enum(true) {
+            return Yaml::String(enum_name);
+        }
+        Yaml::String(format!("{:02X}", self.code))
     }
 }
 

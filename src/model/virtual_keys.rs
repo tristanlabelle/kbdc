@@ -70,10 +70,47 @@ impl VirtualKey {
     pub const RIGHT_CONTROL: Self = Self { code: 0xA3 };
     pub const LEFT_ALT: Self = Self { code: 0xA4 };
     pub const RIGHT_ALT: Self = Self { code: 0xA5 };
+
+    pub const NONE: Self = Self { code: 0xFF };
 }
 
 use bimap::BiHashMap;
 use lazy_static::lazy_static;
+
+
+impl VirtualKey {
+    pub fn to_vk_enum(&self, include_ascii: bool) -> Option<String> {
+        if include_ascii && Self::is_code_ascii(self.code) {
+            let mut vk_name = "VK_".to_string();
+            vk_name.push(self.code as char);
+            return Some(vk_name);
+        }
+        code_to_vk_name.get_by_left(&self.code).map(|name| name.to_string())
+    }
+
+    pub fn from_vk_enum(name: &str, include_ascii: bool) -> Option<Self> {
+        if include_ascii && name.starts_with("VK_") && name.len() == 4 {
+            let c = name[3..].chars().next()? as u32;
+            if c < 0x80 && Self::is_code_ascii(c as u8) {
+                return Some(VirtualKey { code: c as u8 });
+            }
+        }
+
+        code_to_vk_name.get_by_right(&name).copied().map(|code| VirtualKey { code })
+    }
+
+    pub fn is_code_ascii(code: u8) -> bool {
+        if code >= 0x30 && code <= 0x39 {
+            true // Numeric keys (0-9)
+        }
+        else if code >= 0x41 && code <= 0x5A {
+            true // Alphabetic keys (A-Z)
+        }
+        else {
+            false // Other keys
+        }
+    }
+}
 
 lazy_static! {
     static ref code_to_vk_name: BiHashMap<u8, &'static str> = {
@@ -199,6 +236,8 @@ lazy_static! {
         map.insert(0xBE, "VK_OEM_PERIOD");
         map.insert(0xBF, "VK_OEM_2");
         map.insert(0xC0, "VK_OEM_3");
+        map.insert(0xC1, "VK_ABNT_C1");
+        map.insert(0xC2, "VK_ABNT_C2");
         map.insert(0xDB, "VK_OEM_4");
         map.insert(0xDC, "VK_OEM_5");
         map.insert(0xDD, "VK_OEM_6");
@@ -216,28 +255,7 @@ lazy_static! {
         map.insert(0xFC, "VK_NONAME");
         map.insert(0xFD, "VK_PA1");
         map.insert(0xFE, "VK_OEM_CLEAR");
+        map.insert(0xFF, "VK__none_");
         map
     };
-}
-
-impl VirtualKey {
-    pub fn to_vk_enum(&self) -> Option<&str> {
-        code_to_vk_name.get_by_left(&self.code).copied()
-    }
-
-    pub fn from_vk_enum(name: &str) -> Option<Self> {
-        code_to_vk_name.get_by_right(&name).copied().map(|code| VirtualKey { code })
-    }
-
-    pub fn is_code_ascii(&self) -> bool {
-        if self.code >= 0x30 && self.code <= 0x39 {
-            true // Numeric keys (0-9)
-        }
-        else if self.code >= 0x41 && self.code <= 0x5A {
-            true // Alphabetic keys (A-Z)
-        }
-        else {
-            false // Other keys
-        }
-    }
 }
