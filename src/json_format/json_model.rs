@@ -8,8 +8,9 @@ use crate::model as model;
 #[derive(Serialize)]
 #[allow(non_snake_case)]
 pub struct Document {
-    pub physicalKeyNames: BTreeMap<ScanCodeKey, String>,
-    pub physicalToVirtual: BTreeMap<ScanCodeKey, VirtualKeyValue>
+    physicalKeyNames: BTreeMap<ScanCodeKey, String>,
+    physicalToVirtual: BTreeMap<ScanCodeKey, VirtualKeyValue>,
+    deadKeys: BTreeMap<char, DeadKeyDesc>
 }
 
 impl Document {
@@ -29,9 +30,18 @@ impl Document {
                 VirtualKeyValue(physical_key.virtual_key));
         }
 
+        let mut dead_keys = BTreeMap::new();
+        for (char, dead_key) in &keyboard_desc.dead_keys {
+            dead_keys.insert(
+                char::from_u32(*char as u32).unwrap(),
+                DeadKeyDesc::from_model(&dead_key)
+            );
+        }
+
         Document {
             physicalKeyNames: physical_key_names,
-            physicalToVirtual: physical_to_virtual
+            physicalToVirtual: physical_to_virtual,
+            deadKeys: dead_keys
         }
     }
 }
@@ -64,6 +74,30 @@ impl Serialize for VirtualKeyValue {
         }
         else {
             serializer.serialize_u8(self.0.code)
+        }
+    }
+}
+
+#[derive(Serialize)]
+#[allow(non_snake_case)]
+struct DeadKeyDesc {
+    name: Option<String>,
+    combos: BTreeMap<char, char>
+}
+
+impl DeadKeyDesc {
+    fn from_model(value: &model::DeadKeyDesc) -> Self {
+        let mut combos = BTreeMap::new();
+        for (char, combo) in &value.combos {
+            combos.insert(
+                char::from_u32(*char as u32).unwrap(),
+                char::from_u32(combo.composed_char as u32).unwrap()
+            );
+        }
+
+        Self {
+            name: value.name.clone(),
+            combos: combos
         }
     }
 }
