@@ -1,8 +1,6 @@
 mod model;
 mod read_dll;
-mod to_yaml;
-
-use saphyr::YamlEmitter;
+mod json_format;
 
 fn main() {
     let descriptor = read_dll::read_keyboard(r"C:\Windows\System32\KBDUS.DLL".to_owned());
@@ -11,9 +9,5 @@ fn main() {
         descriptor.virtual_keys.len(),
         descriptor.dead_keys.len());
 
-    let yaml = descriptor.to_yaml();
-    let mut yaml_str = String::new();
-    YamlEmitter::new(&mut yaml_str).dump(&yaml).unwrap();
-
-    println!("{}", yaml_str);
+    println!("{}", descriptor.to_json());
 }
