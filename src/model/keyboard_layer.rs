@@ -89,6 +89,19 @@ impl KeyModifiers {
             grpseltap: (flags & KBDGRPSELTAP) != 0,
         }
     }
+
+    pub fn to_bits(&self) -> u8 {
+        let mut flags: u32 = 0;
+        if self.shift { flags |= KBDSHIFT; }
+        if self.control { flags |= KBDCTRL; }
+        if self.alt { flags |= KBDALT; }
+        if self.kana { flags |= KBDKANA; }
+        if self.roya { flags |= KBDROYA; }
+        if self.loya { flags |= KBDLOYA; }
+        if self.unknown0x40 { flags |= 0x40; }
+        if self.grpseltap { flags |= KBDGRPSELTAP; }
+        return flags as u8;
+    }
 }
 
 pub enum KeyEffect {

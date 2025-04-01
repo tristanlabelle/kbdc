@@ -1,15 +1,14 @@
 
 use std::collections::BTreeMap;
-
-use serde::Serialize;
-
 use crate::model as model;
 
-#[derive(Serialize)]
+#[derive(serde::Serialize)]
 #[allow(non_snake_case)]
 pub struct Document {
     physicalKeyNames: BTreeMap<ScanCodeKey, String>,
-    physicalToVirtual: BTreeMap<ScanCodeKey, VirtualKeyValue>,
+    physicalToVirtualKeys: BTreeMap<ScanCodeKey, VirtualKeyValue>,
+    modifierKeys: BTreeMap<VirtualKeyKey, ModifierKey>,
+    typingKeys: BTreeMap<VirtualKeyKey, KeyTypingDesc>,
     deadKeys: BTreeMap<char, DeadKeyDesc>
 }
 
@@ -23,11 +22,31 @@ impl Document {
                 physical_key.name.clone().unwrap());
         }
 
-        let mut physical_to_virtual = BTreeMap::new();
+        let mut physical_to_virtual_keys = BTreeMap::new();
         for (scan_code, physical_key) in &keyboard_desc.physical_keys {
-            physical_to_virtual.insert(
+            physical_to_virtual_keys.insert(
                 ScanCodeKey(*scan_code),
                 VirtualKeyValue(physical_key.virtual_key));
+        }
+
+        let mut modifier_keys = BTreeMap::new();
+        let mut typing_keys = BTreeMap::new();
+        for (virtual_key, key_effect) in &keyboard_desc.virtual_keys {
+            match key_effect {
+                model::KeyEffect::Modifier(key_modifiers) => {
+                    if let Some(modifier_key) = ModifierKey::from_model(key_modifiers) {
+                        modifier_keys.insert(
+                            VirtualKeyKey(*virtual_key),
+                            modifier_key);
+                    }
+                },
+                model::KeyEffect::Typing(key_typing) => {
+                    typing_keys.insert(
+                        VirtualKeyKey(*virtual_key),
+                        KeyTypingDesc::from_model(key_typing)
+                    );
+                }
+            }
         }
 
         let mut dead_keys = BTreeMap::new();
@@ -40,7 +59,9 @@ impl Document {
 
         Document {
             physicalKeyNames: physical_key_names,
-            physicalToVirtual: physical_to_virtual,
+            physicalToVirtualKeys: physical_to_virtual_keys,
+            modifierKeys: modifier_keys,
+            typingKeys: typing_keys,
             deadKeys: dead_keys
         }
     }
@@ -49,7 +70,7 @@ impl Document {
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 struct ScanCodeKey(model::ScanCode);
 
-impl Serialize for ScanCodeKey {
+impl serde::Serialize for ScanCodeKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where S: serde::Serializer {
         let str = match self.0 {
@@ -61,9 +82,24 @@ impl Serialize for ScanCodeKey {
     }
 }
 
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct VirtualKeyKey(crate::model::VirtualKey);
+
+impl serde::Serialize for VirtualKeyKey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where S: serde::Serializer {
+        if let Some(enum_name) = self.0.to_vk_enum(true) {
+            serializer.serialize_str(&enum_name)
+        }
+        else {
+            panic!("VirtualKey {:?} does not have a name", self.0)
+        }
+    }
+}
+
 struct VirtualKeyValue(crate::model::VirtualKey);
 
-impl Serialize for VirtualKeyValue {
+impl serde::Serialize for VirtualKeyValue {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where S: serde::Serializer {
         if self.0 == crate::model::VirtualKey::NONE {
@@ -78,7 +114,125 @@ impl Serialize for VirtualKeyValue {
     }
 }
 
-#[derive(Serialize)]
+#[allow(non_camel_case_types)]
+enum ModifierKey {
+    shift,
+    control,
+    alt,
+    kana,
+    roya,
+    loya
+}
+
+impl ModifierKey {
+    fn from_model(value: &model::KeyModifiers) -> Option<Self> {
+        if value.to_bits().count_ones() != 1 { None }
+        else if value.shift { Some(ModifierKey::shift) }
+        else if value.control { Some(ModifierKey::control) }
+        else if value.alt { Some(ModifierKey::alt) }
+        else if value.kana { Some(ModifierKey::kana) }
+        else if value.roya { Some(ModifierKey::roya) }
+        else if value.loya { Some(ModifierKey::loya) }
+        else { None }
+    }
+}
+
+impl serde::Serialize for ModifierKey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where S: serde::Serializer {
+        match self {
+            ModifierKey::shift => serializer.serialize_str("shift"),
+            ModifierKey::control => serializer.serialize_str("control"),
+            ModifierKey::alt => serializer.serialize_str("alt"),
+            ModifierKey::kana => serializer.serialize_str("kana"),
+            ModifierKey::roya => serializer.serialize_str("roya"),
+            ModifierKey::loya => serializer.serialize_str("loya")
+        }
+    }
+}
+
+struct KeyModifiersKey(model::KeyModifiers);
+
+impl KeyModifiersKey {
+    fn to_mask_string(&self) -> String {
+        let mut mask = String::new();
+        if self.0.shift { mask.push_str("s"); }
+        if self.0.control { mask.push_str("c"); }
+        if self.0.alt { mask.push_str("a"); }
+        if self.0.kana { mask.push_str("k"); }
+        if self.0.roya { mask.push_str("r"); }
+        if self.0.loya { mask.push_str("l"); }
+        if self.0.unknown0x40 { mask.push_str("u"); }
+        if self.0.grpseltap { mask.push_str("g"); }
+        mask
+    }
+}
+
+impl PartialEq for KeyModifiersKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(&other) == std::cmp::Ordering::Equal
+    }
+}
+
+impl Eq for KeyModifiersKey {}
+
+impl PartialOrd for KeyModifiersKey {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for KeyModifiersKey {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.to_bits().cmp(&other.0.to_bits())
+    }
+}
+
+impl serde::Serialize for KeyModifiersKey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where S: serde::Serializer {
+        serializer.serialize_str(&self.to_mask_string())
+    }
+}
+
+#[derive(serde::Serialize)]
+#[allow(non_snake_case)]
+struct KeyTypingDesc {
+    pub byModifiers: BTreeMap<KeyModifiersKey, char>,
+    pub capsLockMeansShift: bool,
+    pub capsLockUppercases: bool,
+    pub capsLockAltGrMeansShift: bool,
+    pub kanaSupport: bool,
+    pub grpseltapSupport: bool
+}
+
+impl KeyTypingDesc {
+    fn from_model(value: &model::KeyTyping) -> Self {
+        let mut by_modifiers = BTreeMap::new();
+        for (key_modifiers, effect) in &value.by_modifiers {
+            match effect {
+                model::TypingEffect::Char(c) => {
+                    by_modifiers.insert(
+                        KeyModifiersKey(*key_modifiers),
+                        char::from_u32(*c as u32).unwrap()
+                    );
+                },
+                _ => {}
+            }
+        }
+
+        Self {
+            byModifiers: by_modifiers,
+            capsLockMeansShift: value.caps_lock_means_shift,
+            capsLockUppercases: value.caps_lock_uppercases,
+            capsLockAltGrMeansShift: value.caps_lock_altgr_means_shift,
+            kanaSupport: value.kana_support,
+            grpseltapSupport: value.grpseltap_support
+        }
+    }
+}
+
+#[derive(serde::Serialize)]
 #[allow(non_snake_case)]
 struct DeadKeyDesc {
     name: Option<String>,

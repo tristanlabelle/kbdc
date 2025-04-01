@@ -1,4 +1,4 @@
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 pub struct VirtualKey {
     pub code: u8
 }
@@ -9,6 +9,17 @@ impl VirtualKey {
             VirtualKey { code: (value & 0xFF) as u8 },
             VirtualKeyFlags::from_bits((value >> 8) as u8)
         )
+    }
+}
+
+impl std::fmt::Debug for VirtualKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(vk_enum) = self.to_vk_enum(true) {
+            f.write_str(&vk_enum)
+        }
+        else {
+            write!(f, "{:02X}", self.code)
+        }
     }
 }
 
