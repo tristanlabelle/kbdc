@@ -9,7 +9,12 @@ pub struct Document {
     physicalToVirtualKeys: BTreeMap<ScanCodeKey, VirtualKeyValue>,
     modifierKeys: BTreeMap<VirtualKeyKey, ModifierKey>,
     typingKeys: BTreeMap<VirtualKeyKey, KeyTypingDesc>,
-    deadKeys: BTreeMap<char, DeadKeyDesc>
+    deadKeys: BTreeMap<char, DeadKeyDesc>,
+    version: u16,
+    #[serde(skip_serializing_if = "is_false")]
+    supportsAltGr: bool,
+    r#type: u32,
+    subtype: u32,
 }
 
 impl Document {
@@ -62,7 +67,11 @@ impl Document {
             physicalToVirtualKeys: physical_to_virtual_keys,
             modifierKeys: modifier_keys,
             typingKeys: typing_keys,
-            deadKeys: dead_keys
+            deadKeys: dead_keys,
+            version: keyboard_desc.version,
+            supportsAltGr: keyboard_desc.supports_altgr,
+            r#type: keyboard_desc.type_value,
+            subtype: keyboard_desc.subtype_value
         }
     }
 }
@@ -195,14 +204,21 @@ impl serde::Serialize for KeyModifiersKey {
     }
 }
 
+fn is_false(b: &bool) -> bool { !b }
+
 #[derive(serde::Serialize)]
 #[allow(non_snake_case)]
 struct KeyTypingDesc {
-    pub byModifiers: BTreeMap<KeyModifiersKey, char>,
-    pub capsLockMeansShift: bool,
-    pub capsLockUppercases: bool,
-    pub capsLockAltGrMeansShift: bool,
+    pub byModifiers: BTreeMap<KeyModifiersKey, TypingEffect>,
+    #[serde(skip_serializing_if = "is_false")]
+    pub capsLockAsShift: bool,
+    #[serde(skip_serializing_if = "is_false")]
+    pub capsLockAsUppercase: bool,
+    #[serde(skip_serializing_if = "is_false")]
+    pub capsLockAltGrAsShift: bool,
+    #[serde(skip_serializing_if = "is_false")]
     pub kanaSupport: bool,
+    #[serde(skip_serializing_if = "is_false")]
     pub grpseltapSupport: bool
 }
 
@@ -211,25 +227,48 @@ impl KeyTypingDesc {
         let mut by_modifiers = BTreeMap::new();
         for (key_modifiers, effect) in &value.by_modifiers {
             match effect {
-                model::TypingEffect::Char(c) => {
+                model::TypingEffect::Char(char) => {
                     by_modifiers.insert(
                         KeyModifiersKey(*key_modifiers),
-                        char::from_u32(*c as u32).unwrap()
+                        TypingEffect::Char(char::from_u32(*char as u32).unwrap())
                     );
                 },
-                _ => {}
+                model::TypingEffect::DeadKey(char) => {
+                    by_modifiers.insert(
+                        KeyModifiersKey(*key_modifiers),
+                        TypingEffect::DeadKey {
+                            deadKey: char::from_u32(*char as u32).unwrap()
+                        }
+                    );
+                },
+                model::TypingEffect::Ligature(chars) => {
+                    by_modifiers.insert(
+                        KeyModifiersKey(*key_modifiers),
+                        TypingEffect::Ligature {
+                            ligature: String::from_utf16_lossy(chars)
+                        }
+                    );
+                }
             }
         }
 
         Self {
             byModifiers: by_modifiers,
-            capsLockMeansShift: value.caps_lock_means_shift,
-            capsLockUppercases: value.caps_lock_uppercases,
-            capsLockAltGrMeansShift: value.caps_lock_altgr_means_shift,
+            capsLockAsShift: value.caps_lock_as_shift,
+            capsLockAsUppercase: value.caps_lock_as_uppercase,
+            capsLockAltGrAsShift: value.caps_lock_altgr_as_shift,
             kanaSupport: value.kana_support,
             grpseltapSupport: value.grpseltap_support
         }
     }
+}
+
+#[derive(serde::Serialize)]
+#[serde(untagged)]
+enum TypingEffect {
+    Char(char),
+    DeadKey { deadKey: char },
+    Ligature { ligature: String }
 }
 
 #[derive(serde::Serialize)]

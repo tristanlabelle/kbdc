@@ -26,9 +26,9 @@ pub fn read_keyboard(path: String) -> KeyboardDesc {
 
         let locale_flags = descriptor_ptr.deref().fLocaleFlags;
         descriptor.version = (locale_flags >> 16) as u16;
-        descriptor.altgr_flag = (locale_flags & KLLF_ALTGR) != 0;
-        descriptor.shift_lock_flag = (locale_flags & KLLF_SHIFTLOCK) != 0;
-        descriptor.lrm_rlm_flag = (locale_flags & KLLF_LRM_RLM) != 0;
+        descriptor.supports_altgr = (locale_flags & KLLF_ALTGR) != 0;
+        descriptor.supports_shift_lock = (locale_flags & KLLF_SHIFTLOCK) != 0;
+        descriptor.supports_directionality = (locale_flags & KLLF_LRM_RLM) != 0;
 
         if descriptor_ptr.deref().nLgMax > 0 {
             panic!("Ligatures are not implemented.")
@@ -125,9 +125,9 @@ unsafe fn read_virtual_keys(descriptor_ptr: *const KBDTABLES) -> HashMap<Virtual
                 let attribute_bits = table_row_ptr.deref().Attributes as u32;
                 let mut key_typing = KeyTyping {
                     by_modifiers: HashMap::new(),
-                    caps_lock_means_shift: (attribute_bits & CAPLOK) != 0,
-                    caps_lock_uppercases: (attribute_bits & SGCAPS) != 0,
-                    caps_lock_altgr_means_shift: (attribute_bits & CAPLOKALTGR) != 0,
+                    caps_lock_as_shift: (attribute_bits & CAPLOK) != 0,
+                    caps_lock_as_uppercase: (attribute_bits & SGCAPS) != 0,
+                    caps_lock_altgr_as_shift: (attribute_bits & CAPLOKALTGR) != 0,
                     kana_support: (attribute_bits & KANALOK) != 0,
                     grpseltap_support: (attribute_bits & GRPSELTAP) != 0,
                 };

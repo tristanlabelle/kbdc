@@ -18,9 +18,15 @@ pub struct KeyboardDesc {
 
     // fLocaleFlags
     pub version: u16,
-    pub altgr_flag: bool, // KLLF_ALTGR
-    pub shift_lock_flag: bool, // KLLF_SHIFTLOCK
-    pub lrm_rlm_flag: bool, // KLLF_LRM_RLM
+
+    /// The layout treats right Alt key as Control+Alt.
+    pub supports_altgr: bool, // KLLF_ALTGR
+
+    /// The layout turns off Caps Lock when Shift is depressed.
+    pub supports_shift_lock: bool, // KLLF_SHIFTLOCK
+
+    /// The layout inserts Left-to-Right/Right-to-Left Markers on some combinations.
+    pub supports_directionality: bool, // KLLF_LRM_RLM
 
     // TODO: nLgMax, cbLgEntry, pLigature
     // TODO: dwType, dwSubType
@@ -36,9 +42,9 @@ impl KeyboardDesc {
             virtual_keys: HashMap::new(),
             dead_keys: HashMap::new(),
             version: 0,
-            altgr_flag: false,
-            shift_lock_flag: false,
-            lrm_rlm_flag: false,
+            supports_altgr: false,
+            supports_shift_lock: false,
+            supports_directionality: false,
             type_value: 0,
             subtype_value: 0,
         }
@@ -116,11 +122,11 @@ pub struct KeyTyping {
     pub by_modifiers: HashMap<KeyModifiers, TypingEffect>,
 
     /// Interpret caps lock as a shift modifier.
-    pub caps_lock_means_shift: bool, // CAPLOK
+    pub caps_lock_as_shift: bool, // CAPLOK
     /// Caps lock upper cases the unshifted char.
-    pub caps_lock_uppercases: bool, // SGCAPS
+    pub caps_lock_as_uppercase: bool, // SGCAPS
     /// Interpret caps lock as a shift modifier when altgr is pressed.
-    pub caps_lock_altgr_means_shift: bool, // CAPLOKALTGR
+    pub caps_lock_altgr_as_shift: bool, // CAPLOKALTGR
     /// Kana lock is supported for this key.
     pub kana_support: bool, // KANALOK
     /// grpseltap is supported for this key.
